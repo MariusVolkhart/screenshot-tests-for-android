@@ -9,7 +9,6 @@
 
 package com.facebook.testing.screenshot;
 
-import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
@@ -27,7 +26,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 
-import com.android.dx.stock.ProxyBuilder;
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.implementation.InvocationHandlerAdapter;
+import net.bytebuddy.matcher.ElementMatchers;
 
 public abstract class WindowAttachment {
 
@@ -250,26 +251,25 @@ public abstract class WindowAttachment {
   }
 
   private static Object stub(Class klass) {
-    try {
-      InvocationHandler handler = new InvocationHandler() {
-          @Override
-          public Object invoke(Object project, Method method, Object[] args) {
-            return null;
-          }
-        };
+    InvocationHandler handler = new InvocationHandler() {
+        @Override
+        public Object invoke(Object project, Method method, Object[] args) {
+          return null;
+        }
+      };
 
-      if (klass.isInterface()) {
-        return Proxy.newProxyInstance(
-          klass.getClassLoader(),
-          new Class[] { klass },
-          handler);
-      } else {
-        return ProxyBuilder.forClass(klass)
-          .handler(handler)
-          .build();
-      }
-    } catch (IOException e) {
-      throw new RuntimeException(e);
+    if (klass.isInterface()) {
+      return Proxy.newProxyInstance(
+        klass.getClassLoader(),
+        new Class[] { klass },
+        handler);
+    } else {
+      return new ByteBuddy()
+          .subclass(klass)
+          .method(ElementMatchers.any())
+          .intercept(InvocationHandlerAdapter.of(handler))
+          .make()
+          .load(klass.getClassLoader());
     }
   }
 
